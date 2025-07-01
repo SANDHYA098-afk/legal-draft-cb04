@@ -21,10 +21,10 @@ if "doc_type" not in st.session_state:
     st.session_state.doc_type = ""
 
 if "party_a_details" not in st.session_state:
-    st.session_state.party_a_details = ""
+    st.session_state.party_a_details = {}
 
 if "party_b_details" not in st.session_state:
-    st.session_state.party_b_details = ""
+    st.session_state.party_b_details = {}
 
 if "final_draft" not in st.session_state:
     st.session_state.final_draft = ""
@@ -51,6 +51,18 @@ def detect_document_type(user_input):
             return val
     return None
 
+def parse_party_details(user_input):
+    lines = user_input.strip().split("\n")
+    details = {}
+    for line in lines:
+        if '.' in line:
+            key, value = line.split('.', 1)
+            details[key.strip()] = value.strip()
+    return details
+
+def format_party_details(details):
+    return "\n".join([f"{k}. {v}" for k, v in details.items()])
+
 def generate_document_template(doc_type, party_a, party_b):
     return f"""
 *{doc_type.upper()}*
@@ -58,10 +70,10 @@ def generate_document_template(doc_type, party_a, party_b):
 This {doc_type} is made between the following parties:
 
 *Party A:*  
-{party_a}
+{format_party_details(party_a)}
 
 *Party B:*  
-{party_b}
+{format_party_details(party_b)}
 
 This {doc_type} outlines the terms and agreements mutually accepted by both parties. It shall remain in effect until terminated under the governing law.
 
@@ -96,14 +108,21 @@ tab1, tab2 = st.tabs(["📄 Document Drafting", "🔎 Legal Clarification"])
 # Module 1: Document Drafting
 # -------------------------------
 with tab1:
-    user_input = st.chat_input("You:")
+    # First show the chat history, THEN ask for input (to make it like normal chat)
+    for sender, msg in st.session_state.chat_history:
+        if sender == "user":
+            st.chat_message("user").markdown(msg)
+        else:
+            st.chat_message("assistant").markdown(msg)
+
+    user_input = st.chat_input("Type your message here...")
 
     if user_input:
-        st.session_state.chat_history.append(("user", user_input.lower()))
+        st.session_state.chat_history.append(("user", user_input))
 
         if st.session_state.stage == "intro":
             st.session_state.chat_history.append((
-                "bot",
+                "assistant",
                 "*Hello!* How can I assist you today?\n\nPlease select a document type:\n\n1. Lease Agreement\n2. NDA\n3. Contract\n4. Employment Agreement\n5. Educational Agreement\n6. Freelance Agreement\n\n(Reply with number or name)"
             ))
             st.session_state.stage = "await_doc_type"
@@ -114,24 +133,39 @@ with tab1:
                 st.session_state.doc_type = detected_type
                 st.session_state.stage = "ask_party_a"
                 st.session_state.chat_history.append((
-                    "bot",
-                    f"Great! You've selected *{detected_type.title()}.\n\nPlease provide the details of **Party A*:\n\nParty A Name:\nResidential address:\nContact number:\nType of occupation:\nCity:\nState:"
+                    "assistant",
+                    f"Great! You've selected *{detected_type.title()}.\n\nNow, provide the details of **Party A* in the format below:\n\n"
+                    "1. Party Name:\n"
+                    "2. Residential Address:\n"
+                    "3. Contact Number:\n"
+                    "4. Occupation:\n"
+                    "5. City:\n"
+                    "6. State:"
                 ))
             else:
                 st.session_state.chat_history.append((
-                    "bot",
-                    "I couldn’t detect a valid document type. Please reply with a valid number (1–6) or name from the list."
+                    "assistant",
+                    "❌ I couldn’t detect a valid document type. Please reply with a valid number (1–6) or name from the list."
                 ))
 
         elif st.session_state.stage == "ask_party_a":
-            st.session_state.party_a_details = user_input
+            st.session_state.party_a_details = parse_party_details(user_input)
             st.session_state.stage = "ask_party_b"
-            st.session_state.chat_history.append(("bot", "Now, please provide the details of *Party B* in the same format:\n\nParty B Name:\nResidential address:\nContact number:\nType of occupation:\nCity:\nState:"))
+            st.session_state.chat_history.append((
+                "assistant",
+                "Now, provide the details of *Party B* in the same format:\n\n"
+                "1. Party Name:\n"
+                "2. Residential Address:\n"
+                "3. Contact Number:\n"
+                "4. Occupation:\n"
+                "5. City:\n"
+                "6. State:"
+            ))
 
         elif st.session_state.stage == "ask_party_b":
-            st.session_state.party_b_details = user_input
+            st.session_state.party_b_details = parse_party_details(user_input)
             st.session_state.stage = "show_draft"
-            st.session_state.chat_history.append(("bot", "Thank you! Preparing your legal document..."))
+            st.session_state.chat_history.append(("assistant", "✅ Thank you! Preparing your legal document..."))
 
             final_doc = generate_document_template(
                 st.session_state.doc_type,
@@ -139,13 +173,7 @@ with tab1:
                 st.session_state.party_b_details
             )
             st.session_state.final_draft = final_doc
-            st.session_state.chat_history.append(("bot", final_doc))
-
-        for sender, msg in st.session_state.chat_history:
-            if sender == "user":
-                st.chat_message("user").markdown(msg)
-            else:
-                st.chat_message("assistant").markdown(msg)
+            st.session_state.chat_history.append(("assistant", final_doc))
 
         if st.session_state.final_draft:
             st.download_button(
