@@ -176,9 +176,8 @@ State:
                 st.session_state.party_b_details
             )
             st.session_state.final_draft = final_doc
-            st.session_state.chat_history.append(("assistant", f"Here is your *{st.session_state.doc_type.title()}*:
+           st.session_state.chat_history.append(("assistant", f"Here is your *{st.session_state.doc_type.title()}*:\n\n" + final_doc))
 
-" + final_doc))
 
     # After document is generated, show download button
     if st.session_state.final_draft:
